@@ -153,3 +153,37 @@ with check (id <> auth.uid());
 
 grant execute on function public.is_active_user() to authenticated;
 grant execute on function public.is_admin() to authenticated;
+
+
+
+
+-- メールアドレス欄を追加
+alter table public.profiles
+add column if not exists email text;
+
+-- 既存ユーザーのメールアドレスを補完
+update public.profiles p
+set email = u.email
+from auth.users u
+where p.id = u.id
+  and p.email is null;
+
+-- 今後のGoogleログイン時にメールアドレスも登録
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, role, approved, disabled, email)
+  values (new.id, 'viewer', false, false, new.email)
+  on conflict (id) do nothing;
+
+  return new;
+end;
+$$;
+
+-- 管理者に承認・利用停止の更新権限を付与
+grant update (approved, disabled)
+on public.profiles to authenticated;
