@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="ja">
 <head>
@@ -6,10 +7,12 @@
   <meta name="theme-color" content="#006d69">
   <title>大津線 記録管理</title>
   <link rel="stylesheet" href="style.css">
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="config.js"></script>
   <script defer src="app.js"></script>
 </head>
+
 <body>
   <header class="top">
     <div>
@@ -20,41 +23,99 @@
   </header>
 
   <main>
+    <!-- ログイン画面 -->
     <section id="loginPanel" class="panel">
       <h2>ログイン</h2>
-      <p class="muted">発行されたアカウントでログインしてください。</p>
-      <label>メールアドレス<input id="email" type="email" autocomplete="username"></label>
-      <label>パスワード<input id="password" type="password" autocomplete="current-password"></label>
-      <button id="loginBtn">ログイン</button>
+      <p class="muted">
+        Googleアカウントでログインしてください。
+      </p>
+      <button id="googleLoginBtn">Googleでログイン</button>
       <p id="loginMessage" class="message" aria-live="polite"></p>
     </section>
 
+    <!-- 承認待ち画面 -->
+    <section id="pendingPanel" class="panel" hidden>
+      <h2>承認待ち</h2>
+      <p>アカウント登録が完了しました。</p>
+      <p>現在、管理者による承認待ちです。</p>
+      <p>承認されると記録一覧を閲覧できるようになります。</p>
+      <button id="pendingLogoutBtn" class="secondary">ログアウト</button>
+    </section>
+
+    <!-- アカウント停止画面 -->
+    <section id="disabledPanel" class="panel" hidden>
+      <h2>利用停止中</h2>
+      <p>このアカウントは現在利用停止されています。</p>
+      <p>管理者にお問い合わせください。</p>
+      <button id="disabledLogoutBtn" class="secondary">ログアウト</button>
+    </section>
+
+    <!-- アプリ本体 -->
     <section id="appPanel" hidden>
+
       <div class="toolbar">
         <div>
           <h2>記録一覧</h2>
-          <p class="muted">登録済みの記録を確認できます。</p>
+          <p class="muted" id="userEmail"></p>
         </div>
         <button id="logoutBtn" class="secondary">ログアウト</button>
       </div>
 
+      <!-- 管理者用：記録追加 -->
       <section id="adminForm" class="panel" hidden>
         <h3>記録を追加</h3>
-        <label>記録名<input id="recordTitle" maxlength="120" placeholder="例：資料名・管理番号"></label>
-        <label>分類<input id="recordCategory" maxlength="80" placeholder="例：石山坂本線／京津線 など"></label>
-        <label>メモ<textarea id="recordNote" rows="3" maxlength="1000"></textarea></label>
+
+        <label>
+          記録名
+          <input id="recordTitle" maxlength="120"
+            placeholder="例：資料名・管理番号">
+        </label>
+
+        <label>
+          分類
+          <input id="recordCategory" maxlength="80"
+            placeholder="例：石山坂本線／京津線">
+        </label>
+
+        <label>
+          メモ
+          <textarea id="recordNote" rows="3" maxlength="1000"></textarea>
+        </label>
+
         <button id="addBtn">追加する</button>
         <p id="adminMessage" class="message" aria-live="polite"></p>
       </section>
 
+      <!-- 管理者用：ユーザー管理 -->
+      <section id="userManagement" class="panel" hidden>
+        <h3>ユーザー管理</h3>
+        <p class="muted">
+          新規ユーザーの承認や利用停止を管理できます。
+        </p>
+        <button id="refreshUsersBtn" class="secondary">
+          ユーザー一覧を更新
+        </button>
+        <div id="users" class="records"></div>
+        <p id="userMessage" class="message" aria-live="polite"></p>
+      </section>
+
+      <!-- 記録一覧 -->
       <div class="filters">
-        <label class="check"><input id="uncollectedOnly" type="checkbox" checked> 未完了のみ表示</label>
+        <label class="check">
+          <input id="uncollectedOnly" type="checkbox" checked>
+          未完了のみ表示
+        </label>
         <button id="refreshBtn" class="secondary">再読み込み</button>
       </div>
+
       <div id="records" class="records"></div>
       <p id="listMessage" class="message" aria-live="polite"></p>
+
     </section>
   </main>
-  <footer>記録は共有データベースに保存されます。</footer>
+
+  <footer>
+    記録は共有データベースに保存されます。
+  </footer>
 </body>
 </html>
