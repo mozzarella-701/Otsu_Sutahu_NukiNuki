@@ -80,11 +80,26 @@
       root.append(card);
     });
   }
-  $("loginBtn").addEventListener("click", async () => {
-    if (!client) { message("loginMessage","先にSupabase設定が必要です。"); return; }
-    message("loginMessage","ログイン中…");
-    const { error } = await client.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});
-    message("loginMessage", error ? "ログインできませんでした。入力内容を確認してください。" : "");
+ $("loginBtn").addEventListener("click", async () => {
+    if (!client) {
+      message("loginMessage", "先にSupabase設定が必要です。");
+      return;
+    }
+
+    message("loginMessage", "ログイン中…");
+
+    const { error } = await client.auth.signInWithPassword({
+      email: $("email").value.trim(),
+      password: $("password").value
+    });
+
+    if (error) {
+      console.error("ログインエラー:", error);
+      message("loginMessage", "ログイン失敗：" + error.message);
+    } else {
+      message("loginMessage", "");
+    }
+});
   });
   $("logoutBtn").addEventListener("click", () => client.auth.signOut());
   $("addBtn").addEventListener("click", async () => {
