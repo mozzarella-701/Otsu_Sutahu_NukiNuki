@@ -8,6 +8,182 @@
   let isAdmin = false;
   let entering = false;
 
+  
+  let otsuStations = null;
+
+  // 大津線の駅名
+  const otsuStationNames = [
+    "石山寺", "唐橋前", "京阪石山", "粟津", "瓦ヶ浜",
+    "中ノ庄", "膳所本町", "錦", "京阪膳所", "石場",
+    "島ノ関", "びわ湖浜大津", "三井寺", "大津市役所前",
+    "京阪大津京", "近江神宮前", "南滋賀", "滋賀里",
+    "穴太", "松ノ馬場", "坂本比叡山口",
+    "京阪山科", "四宮", "追分", "大谷", "上栄町"
+  ];
+
+  // 2地点間の距離を計算（km）
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const rad = d => d * Math.PI / 180;
+    const R = 6371;
+
+    const dLat = rad(lat2 - lat1);
+    const dLon = rad(lon2 - lon1);
+
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(rad(lat1)) *
+      Math.cos(rad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  // 公開地図データから大津線の駅位置を取得
+  async function loadOtsuStations() {
+    if (otsuStations) return otsuStations;
+
+    const query = `
+      [out:json][timeout:25];
+      (
+        node["railway"~"^(station|halt|tram_stop)$"]
+          (34.93,135.78,35.12,135.95);
+        way["railway"~"^(station|halt|tram_stop)$"]
+          (34.93,135.78,35.12,135.95);
+      );
+      out center tags;
+    `;
+
+    const endpoints = [
+      "https://overpass-api.de/api/interpreter",
+      "https://overpass.kumi.systems/api/interpreter"
+    ];
+
+    let lastError;
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+          },
+          body: "data=" + encodeURIComponent(query)
+        });
+
+        if (!response.ok) {
+          throw new Error("駅データを取得できませんでした。");
+        }
+
+        const result = await response.json();
+
+        const allowed = new Set(otsuStationNames);
+
+        const stations = (result.elements || [])
+          .map(item => {
+            const name = item.tags?.name || item.tags?.["name:ja"];
+            const lat = item.lat ?? item.center?.lat;
+            const lon = item.lon ?? item.center?.lon;
+
+            return { name, lat, lon };
+          })
+          .filter(s =>
+            allowed.has(s.name) &&
+            Number.isFinite(s.lat) &&
+            Number.isFinite(s.lon)
+          );
+
+        if (!stations.length) {
+          throw new Error("駅の位置情報が見つかりませんでした。");
+        }
+
+        otsuStations = stations;
+        return stations;
+
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error("駅データを取得できませんでした。");
+  }
+
+  // 現在地から最寄り駅を調べる
+  async function findNearestStation() {
+    const button = $("locationBtn");
+    button.disabled = true;
+    message("locationMessage", "現在地を取得しています…");
+
+    try {
+      if (!navigator.geolocation) {
+        throw new Error("このブラウザでは位置情報を利用できません。");
+      }
+
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: false,
+            timeout: 15000,
+            maximumAge: 60000
+          }
+        );
+      });
+
+      message("locationMessage", "最寄り駅を調べています…");
+
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+
+      const stations = await loadOtsuStations();
+
+      let nearest = null;
+
+      for (const station of stations) {
+        const distance = distanceKm(
+          lat, lon, station.lat, station.lon
+        );
+
+        if (!nearest || distance < nearest.distance) {
+          nearest = {
+            name: station.name,
+            distance
+          };
+        }
+      }
+
+      if (!nearest) {
+        throw new Error("最寄り駅を特定できませんでした。");
+      }
+
+      message(
+        "locationMessage",
+        "最寄り駅： " + nearest.name + "駅\n" +
+        "直線距離：約" + nearest.distance.toFixed(2) + " km"
+      );
+
+    } catch (error) {
+      let text = "位置情報を取得できませんでした。";
+
+      if (error.code === 1) {
+        text = "位置情報の使用が許可されていません。Safariのサイト設定を確認してください。";
+      } else if (error.code === 2) {
+        text = "現在地を取得できませんでした。";
+      } else if (error.code === 3) {
+        text = "位置情報の取得がタイムアウトしました。";
+      } else if (error.message) {
+        text = error.message;
+      }
+
+      message("locationMessage", text);
+      console.error(error);
+
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+
   const ready =
     cfg.SUPABASE_URL &&
     cfg.SUPABASE_ANON_KEY &&
