@@ -52,6 +52,22 @@
           <p id="manualStationMessage" class="muted" aria-live="polite">選択した駅はこの画面内だけで使用します。</p>
         </div>
       </section>
+      <section id="timetablePanel" class="panel">
+        <div class="list-heading"><h2>公開時刻表</h2><p class="muted">管理者が読み込んだ .oud の公開時刻表データを表示します。</p></div>
+        <div id="timetableAdminTools" hidden>
+          <label>最新版 .oud ファイルを選択<input id="oudFile" type="file" accept=".oud,application/octet-stream,text/plain"></label>
+          <button id="previewOudBtn" type="button">ファイルを解析</button>
+          <p id="oudMessage" class="message" aria-live="polite"></p>
+          <div id="oudPreview" class="oud-preview" hidden></div>
+          <button id="applyOudBtn" type="button" hidden>この時刻表を共有データに反映</button>
+        </div>
+        <div class="timetable-filters">
+          <label>駅を選択<select id="timetableStation"><option value="">駅を選択してください</option></select></label>
+          <label>列車番号・時刻を検索<input id="timetableSearch" type="search" placeholder="例：0571、06:30"></label>
+        </div>
+        <p id="timetableSummary" class="record-summary">時刻表を読み込み中…</p>
+        <div id="timetableRows" class="records"></div>
+      </section>
       <section id="adminForm" class="panel" hidden>
         <h3>記録を追加</h3>
         <label>記録名<input id="recordTitle" maxlength="120" placeholder="例：資料名・管理番号"></label>

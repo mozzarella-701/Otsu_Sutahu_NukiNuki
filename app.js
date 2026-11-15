@@ -7,6 +7,9 @@
   let currentUser = null;
   let isAdmin = false;
   let entering = false;
+  let pendingTimetable = null;
+  let currentTimetable = [];
+  let currentTimetableStations = [];
 
   
   let otsuStations = null;
@@ -330,8 +333,10 @@ async function loadOtsuStations() {
       $("adminForm").hidden = !isAdmin;
       $("userManagement").hidden = !isAdmin;
       $("exportTools").hidden = !isAdmin;
+      $("timetableAdminTools").hidden = !isAdmin;
 
       await loadRecords();
+      await loadPublicTimetable();
 
       if (isAdmin) await loadUsers();
 
@@ -402,104 +407,6 @@ async function loadOtsuStations() {
         const actions = document.createElement("div");
         actions.className = "record-actions";
 
-  // 管理者向け：記録の編集
-  function openRecordEditor(record, card) {
-    if (!isAdmin) return;
-
-    const oldEditor = card.querySelector(".record-edit-form");
-    if (oldEditor) {
-      oldEditor.remove();
-      return;
-    }
-
-    const editor = document.createElement("div");
-    editor.className = "record-edit-form";
-    editor.style.cssText = `
-      display:grid;
-      gap:10px;
-      margin-top:14px;
-      padding:14px;
-      background:#f3f7f6;
-      border-radius:12px;
-    `;
-
-    function addField(labelText, value, multiline = false) {
-      const label = document.createElement("label");
-      label.textContent = labelText;
-      label.style.cssText = "display:grid;gap:6px;font-weight:600;";
-
-      const field = document.createElement(
-        multiline ? "textarea" : "input"
-      );
-
-      field.value = value || "";
-      field.style.cssText = `
-        box-sizing:border-box;
-        width:100%;
-        padding:10px;
-        border:1px solid #cbd8d5;
-        border-radius:8px;
-        background:white;
-        font:inherit;
-      `;
-
-      if (multiline) field.rows = 3;
-
-      label.append(field);
-      editor.append(label);
-      return field;
-    }
-
-    const titleInput = addField("記録名", record.title);
-    const categoryInput = addField("分類", record.category);
-    const noteInput = addField("メモ", record.note, true);
-
-    const buttons = document.createElement("div");
-    buttons.className = "record-actions";
-
-    const save = document.createElement("button");
-    save.textContent = "変更を保存";
-
-    save.onclick = async () => {
-      const title = titleInput.value.trim();
-
-      if (!title) {
-        alert("記録名を入力してください。");
-        return;
-      }
-
-      save.disabled = true;
-      save.textContent = "保存中…";
-
-      const { error } = await client
-        .from("records")
-        .update({
-          title,
-          category: categoryInput.value.trim(),
-          note: noteInput.value.trim()
-        })
-        .eq("id", record.id);
-
-      if (error) {
-        alert("保存できませんでした。");
-        console.error(error);
-        save.disabled = false;
-        save.textContent = "変更を保存";
-        return;
-      }
-
-      await loadRecords();
-    };
-
-    const cancel = document.createElement("button");
-    cancel.textContent = "キャンセル";
-    cancel.onclick = () => editor.remove();
-
-    buttons.append(save, cancel);
-    editor.append(buttons);
-    card.append(editor);
-  }
-        
         const toggle = document.createElement("button");
         toggle.className = "done";
         toggle.textContent = r.completed ? "未完了に戻す" : "完了にする";
@@ -513,11 +420,6 @@ async function loadOtsuStations() {
           if (error) alert("更新できませんでした。");
           else await loadRecords();
         };
-
-        const edit = document.createElement("button");
-        edit.textContent = "編集";
-        edit.onclick = () => openRecordEditor(r, card);        
-
 
         const del = document.createElement("button");
         del.className = "delete";
@@ -535,7 +437,7 @@ async function loadOtsuStations() {
           else await loadRecords();
         };
 
-                actions.append(edit, toggle, del);
+        actions.append(toggle, del);
         card.append(actions);
       }
 
@@ -543,6 +445,227 @@ async function loadOtsuStations() {
     });
   }
 
+
+  // OuDia 1.00 / 1.02 の公開時刻表だけを解析する。Bikou（備考欄）は読み込まない。
+  function parseOuDiaTree(lines) {
+    let pos = 0;
+    const readBlock = name => {
+      const node = { name, props: [], kids: [] };
+      while (pos < lines.length) {
+        const line = lines[pos++];
+        if (line === ".") return node;
+        if (!line.includes("=") && line.endsWith(".")) node.kids.push(readBlock(line.slice(0, -1)));
+        else {
+          const k = line.indexOf("=");
+          node.props.push(k < 0 ? [line, ""] : [line.slice(0, k), line.slice(k + 1)]);
+        }
+      }
+      return node;
+    };
+    const root = { name: "", props: [], kids: [] };
+    while (pos < lines.length) {
+      const line = lines[pos++];
+      if (!line) continue;
+      if (!line.includes("=") && line.endsWith(".")) root.kids.push(readBlock(line.slice(0, -1)));
+      else {
+        const k = line.indexOf("=");
+        root.props.push(k < 0 ? [line, ""] : [line.slice(0, k), line.slice(k + 1)]);
+      }
+    }
+    return root;
+  }
+
+  function parseOuDiaTime(value) {
+    let v = String(value || "").replace(/[：:\s]/g, "");
+    if (!/^\d{3,6}$/.test(v)) return null;
+    if (v.length === 3 || v.length === 5) v = "0" + v;
+    const hh = Number(v.slice(0, 2));
+    const mm = Number(v.slice(2, 4));
+    const ss = v.length === 6 ? Number(v.slice(4, 6)) : 0;
+    if (mm > 59 || ss > 59) return null;
+    return { minutes: (hh < 3 ? hh + 24 : hh) * 60 + mm + ss / 60, text: `${String(hh).padStart(2,"0")}:${String(mm).padStart(2,"0")}` };
+  }
+
+  function parseOuDiaCell(raw) {
+    if (!raw || raw === "0") return null;
+    const semi = raw.indexOf(";");
+    const body = semi < 0 ? "" : raw.slice(semi + 1);
+    const timePart = body.split("$")[0];
+    let arrival = null, departure = null;
+    if (timePart.includes("/")) {
+      const [a, d] = timePart.split("/");
+      arrival = a ? parseOuDiaTime(a) : null;
+      departure = d ? parseOuDiaTime(d) : null;
+    } else if (timePart) {
+      departure = parseOuDiaTime(timePart);
+    }
+    if (!arrival && !departure) return null;
+    return { arrival, departure };
+  }
+
+  function parseOuDiaText(text) {
+    const lines = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n").split("\n");
+    if (!lines.some(x => x === "FileType=OuDia.1.02" || x === "FileType=OuDia.1.00")) throw new Error("OuDia 1.00 / 1.02形式ではありません。");
+    const root = parseOuDiaTree(lines);
+    const rosen = root.kids.find(x => x.name === "Rosen");
+    if (!rosen) throw new Error("路線情報（Rosen）が見つかりません。");
+    const stations = rosen.kids.filter(x => x.name === "Eki").map(x => {
+      const prop = x.props.find(p => p[0] === "Ekimei");
+      return prop ? prop[1] : "";
+    }).filter(Boolean);
+    if (stations.length < 2) throw new Error("駅情報を読み取れませんでした。");
+
+    const schedules = [];
+    const dias = rosen.kids.filter(x => x.name === "Dia");
+    for (const dia of dias) {
+      const nameProp = dia.props.find(p => p[0] === "DiaName");
+      const diaName = nameProp?.[1] || "ダイヤ";
+      for (const dirBlock of dia.kids.filter(x => x.name === "Kudari" || x.name === "Nobori")) {
+        const direction = dirBlock.name === "Kudari" ? "下り" : "上り";
+        const reverse = dirBlock.name === "Nobori";
+        for (const train of dirBlock.kids.filter(x => x.name === "Ressya")) {
+          const get = key => train.props.find(p => p[0] === key)?.[1] || "";
+          const trainNo = get("Ressyabangou").trim();
+          const cells = get("EkiJikoku").split(",");
+          if (!trainNo || !cells.length) continue;
+          const calls = [];
+          for (let i = 0; i < stations.length; i++) {
+            const sourceIndex = reverse ? stations.length - 1 - i : i;
+            const cell = parseOuDiaCell(cells[sourceIndex] || "0");
+            if (!cell) continue;
+            const arrival = cell.arrival?.text || "";
+            const departure = cell.departure?.text || "";
+            const sortTime = cell.departure?.minutes ?? cell.arrival?.minutes;
+            calls.push({ station: stations[i], time: departure || arrival, arrival, departure, sortTime });
+          }
+          if (calls.length) schedules.push({ diagram: diaName, direction, trainNo, calls });
+        }
+      }
+    }
+    if (!schedules.length) throw new Error("列車時刻を読み取れませんでした。EkiJikokuの形式を確認してください。");
+    return { stations, schedules, diagramNames: [...new Set(schedules.map(x => x.diagram))] };
+  }
+
+  function compareTimetables(nextSchedules) {
+    const oldRows = currentTimetable || [];
+    const key = t => `${t.diagram}|${t.direction}|${t.trainNo}`;
+    const oldMap = new Map(oldRows.map(t => [key(t), JSON.stringify(t.calls || [])]));
+    const newMap = new Map(nextSchedules.map(t => [key(t), JSON.stringify(t.calls || [])]));
+    let added = 0, removed = 0, changed = 0;
+    for (const [k, v] of newMap) {
+      if (!oldMap.has(k)) added++;
+      else if (oldMap.get(k) !== v) changed++;
+    }
+    for (const k of oldMap.keys()) if (!newMap.has(k)) removed++;
+    return { added, removed, changed, unchanged: Math.max(0, nextSchedules.length - added - changed) };
+  }
+
+  function setupTimetableStationOptions() {
+    const select = $("timetableStation");
+    if (!select) return;
+    select.replaceChildren(new Option("駅を選択してください", ""));
+    for (const name of currentTimetableStations) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name + "駅";
+      select.appendChild(option);
+    }
+  }
+
+  function renderTimetable() {
+    const root = $("timetableRows");
+    if (!root) return;
+    root.replaceChildren();
+    const station = $("timetableStation").value;
+    const keyword = ($("timetableSearch").value || "").trim().toLocaleLowerCase("ja");
+    let rows = currentTimetable;
+    if (station) rows = rows.map(t => ({...t, calls:t.calls.filter(c => c.station === station)})).filter(t => t.calls.length);
+    if (keyword) rows = rows.filter(t => `${t.trainNo} ${t.diagram} ${t.calls.map(c => `${c.station} ${c.time}`).join(" ")}`.toLocaleLowerCase("ja").includes(keyword));
+    $("timetableSummary").textContent = `公開時刻表：全${currentTimetable.length}列車 ／ 表示${rows.length}列車`;
+    if (!rows.length) {
+      const empty = document.createElement("p"); empty.className = "muted"; empty.textContent = currentTimetable.length ? "条件に一致する列車はありません。" : "時刻表データはまだ登録されていません。"; root.append(empty); return;
+    }
+    rows.slice(0, 150).forEach(t => {
+      const card = document.createElement("article"); card.className = "record";
+      const title = document.createElement("h3"); title.textContent = `${t.trainNo}　${t.direction}`;
+      const meta = document.createElement("p"); meta.className = "meta"; meta.textContent = t.diagram;
+      const times = document.createElement("p"); times.textContent = t.calls.map(c => `${c.station} ${c.arrival && c.departure ? `${c.arrival}/${c.departure}` : (c.departure || c.arrival || c.time)}`).join("　→　");
+      card.append(title, meta, times); root.append(card);
+    });
+    if (rows.length > 150) {
+      const more = document.createElement("p"); more.className = "muted"; more.textContent = "表示件数が150列車を超えるため、駅や検索条件で絞り込んでください。"; root.append(more);
+    }
+  }
+
+  async function loadPublicTimetable() {
+    const { data, error } = await client.from("public_timetable").select("data, source_filename, imported_at").eq("id", 1).maybeSingle();
+    if (error) {
+      $("timetableSummary").textContent = "時刻表テーブル未設定です。管理者は同梱SQLをSupabaseで1回実行してください。";
+      console.warn(error);
+      return;
+    }
+    currentTimetable = data?.data?.schedules || [];
+    currentTimetableStations = data?.data?.stations || [];
+    setupTimetableStationOptions();
+    renderTimetable();
+    if (data?.source_filename) {
+      const date = data.imported_at ? new Date(data.imported_at).toLocaleString("ja-JP") : "";
+      $("timetableSummary").textContent += ` ／ ${data.source_filename} ${date ? "（" + date + "反映）" : ""}`;
+    }
+  }
+
+  async function previewOuDia() {
+    if (!isAdmin) return;
+    const file = $("oudFile").files?.[0];
+    if (!file) { message("oudMessage", ".oudファイルを選択してください。"); return; }
+    message("oudMessage", "解析中…");
+    $("applyOudBtn").hidden = true;
+    try {
+      const buffer = await file.arrayBuffer();
+      let decoded;
+      try { decoded = new TextDecoder("shift_jis").decode(buffer); }
+      catch { decoded = new TextDecoder("utf-8").decode(buffer); }
+      pendingTimetable = parseOuDiaText(decoded);
+      pendingTimetable.sourceFilename = file.name;
+      const preview = $("oudPreview"); preview.hidden = false; preview.replaceChildren();
+      const summary = document.createElement("p"); summary.textContent = `${pendingTimetable.stations.length}駅・${pendingTimetable.schedules.length}列車・${pendingTimetable.diagramNames.length}種類のダイヤを読み取りました。`;
+      const names = document.createElement("p"); names.textContent = "ダイヤ：" + pendingTimetable.diagramNames.join("／");
+      const diff = compareTimetables(pendingTimetable.schedules);
+      const changes = document.createElement("p");
+      changes.textContent = `現在の公開時刻表との差分：追加 ${diff.added} ／ 時刻等変更 ${diff.changed} ／ 削除 ${diff.removed} ／ 変更なし ${diff.unchanged}`;
+      const sample = document.createElement("p"); sample.textContent = "読み取り例：" + pendingTimetable.schedules.slice(0, 5).map(t => `${t.diagram} ${t.trainNo} ${t.calls[0]?.station || ""} ${t.calls[0]?.time || ""}`).join("、");
+      preview.append(summary, names, changes, sample);
+      $("applyOudBtn").hidden = false;
+      message("oudMessage", "解析できました。内容を確認してから共有データに反映してください。");
+    } catch (error) {
+      pendingTimetable = null;
+      message("oudMessage", error.message || "解析できませんでした。");
+      console.error(error);
+    }
+  }
+
+  async function applyOuDia() {
+    if (!isAdmin || !pendingTimetable) return;
+    const button = $("applyOudBtn"); button.disabled = true;
+    message("oudMessage", "共有データに反映中…");
+    try {
+      const payload = {
+        id: 1,
+        source_filename: pendingTimetable.sourceFilename,
+        imported_at: new Date().toISOString(),
+        imported_by: currentUser.id,
+        data: { stations: pendingTimetable.stations, diagramNames: pendingTimetable.diagramNames, schedules: pendingTimetable.schedules }
+      };
+      const { error } = await client.from("public_timetable").upsert(payload, { onConflict: "id" });
+      if (error) throw error;
+      message("oudMessage", "反映完了！閲覧者にも公開時刻表が共有されました。");
+      $("oudPreview").hidden = true; button.hidden = true; pendingTimetable = null;
+      await loadPublicTimetable();
+    } catch (error) {
+      message("oudMessage", "反映できませんでした。SupabaseのSQL設定と通信状態を確認してください。");
+      console.error(error);
+    } finally { button.disabled = false; }
+  }
 
   // 管理者向け：全記録をCSVでバックアップ
   function csvCell(value) {
@@ -796,7 +919,11 @@ const locationBtn = $("locationBtn");
 if (locationBtn) {
   locationBtn.addEventListener("click", findNearestStation);
 }
-setupManualStation();
+  $("previewOudBtn")?.addEventListener("click", previewOuDia);
+  $("applyOudBtn")?.addEventListener("click", applyOuDia);
+  $("timetableStation")?.addEventListener("change", renderTimetable);
+  $("timetableSearch")?.addEventListener("input", renderTimetable);
+  setupManualStation();
 
   init();
 })();
