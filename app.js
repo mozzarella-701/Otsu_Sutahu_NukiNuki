@@ -22,6 +22,15 @@
     "京阪大津京", "近江神宮前", "南滋賀", "滋賀里",
     "穴太", "松ノ馬場", "坂本比叡山口",
     "京阪山科", "四宮", "追分", "大谷", "上栄町"
+      // oudの駅名とサイトの駅名の違いを吸収
+  const stationAlias = {
+    "びわ湖浜大津": ["浜大津", "浜大津（京津）"],
+    "大津市役所前": ["別所"],
+    "京阪大津京": ["皇子山"],
+    "坂本比叡山口": ["坂本"]
+  };
+  const sameStation = (callName, selected) =>
+    callName === selected || (stationAlias[selected] || []).includes(callName);
   ];
 
   // 2地点間の距離を計算（km）
@@ -452,7 +461,7 @@ async function loadOtsuStations() {
   }
 
 
-  // OuDia 1.00 / 1.02 の公開時刻表だけを解析する。Bikou（備考欄）は読み込まない。
+  // OuDia 1.00 / 1.02 を解析する。備考欄（Bikou）は〔回収:済〕の有無だけを読み取り、他の内容は保存しない。
   function parseOuDiaTree(lines) {
     let pos = 0;
     const readBlock = name => {
