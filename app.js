@@ -542,6 +542,8 @@ async function loadOtsuStations() {
         for (const train of dirBlock.kids.filter(x => x.name === "Ressya")) {
           const get = key => train.props.find(p => p[0] === key)?.[1] || "";
           const trainNo = get("Ressyabangou").trim();
+                    const trainNo = get("Ressyabangou").trim();
+          const collected = get("Bikou").includes("〔回収:済〕");
           const cells = get("EkiJikoku").split(",");
           if (!trainNo || !cells.length) continue;
           const calls = [];
