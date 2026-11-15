@@ -693,8 +693,6 @@ async function loadOtsuStations() {
     for (const train of timetableRows) {
       if (train.collected) continue;
       const call = (train.calls || []).find(c => sameStation(c.station, station));
-    
-      const call = (train.calls || []).find(c => c.station === station);
       if (!call) continue;
       const rawTime = call.departure || call.time || call.arrival || "";
       const match = String(rawTime).match(/^(\d{1,2}):(\d{2})$/);
