@@ -555,8 +555,8 @@ async function loadOtsuStations() {
   function compareTimetables(nextSchedules) {
     const oldRows = currentTimetable || [];
     const key = t => `${t.diagram}|${t.direction}|${t.trainNo}`;
-    const oldMap = new Map(oldRows.map(t => [key(t), JSON.stringify(t.calls || [])]));
-    const newMap = new Map(nextSchedules.map(t => [key(t), JSON.stringify(t.calls || [])]));
+    const oldMap = new Map(oldRows.map(t => [key(t), JSON.stringify([!!t.collected, t.calls || []])]));
+    const newMap = new Map(nextSchedules.map(t => [key(t), JSON.stringify([!!t.collected, t.calls || []])]));
     let added = 0, removed = 0, changed = 0;
     for (const [k, v] of newMap) {
       if (!oldMap.has(k)) added++;
@@ -584,10 +584,11 @@ async function loadOtsuStations() {
     root.replaceChildren();
     const station = $("timetableStation").value;
     const keyword = ($("timetableSearch").value || "").trim().toLocaleLowerCase("ja");
-    let rows = currentTimetable;
-    if (station) rows = rows.map(t => ({...t, calls:t.calls.filter(c => c.station === station)})).filter(t => t.calls.length);
+    let rows = currentTimetable.filter(t => !t.collected);
+    const uncollectedTotal = rows.length;
+    if (station) rows = rows.map(t => ({...t, calls:t.calls.filter(c => sameStation(c.station, station))})).filter(t => t.calls.length);
     if (keyword) rows = rows.filter(t => `${t.trainNo} ${t.diagram} ${t.calls.map(c => `${c.station} ${c.time}`).join(" ")}`.toLocaleLowerCase("ja").includes(keyword));
-    $("timetableSummary").textContent = `公開時刻表：全${currentTimetable.length}列車 ／ 表示${rows.length}列車`;
+    $("timetableSummary").textContent = `未回収スタフの列車：${uncollectedTotal}列車（全${currentTimetable.length}列車中）／ 表示${rows.length}列車`;
     if (!rows.length) {
       const empty = document.createElement("p"); empty.className = "muted"; empty.textContent = currentTimetable.length ? "条件に一致する列車はありません。" : "時刻表データはまだ登録されていません。"; root.append(empty); return;
     }
@@ -681,6 +682,9 @@ async function loadOtsuStations() {
     const timetableRows = dayRows.length ? dayRows : currentTimetable;
 
     for (const train of timetableRows) {
+      if (train.collected) continue;
+      const call = (train.calls || []).find(c => sameStation(c.station, station));
+    
       const call = (train.calls || []).find(c => c.station === station);
       if (!call) continue;
       const rawTime = call.departure || call.time || call.arrival || "";
@@ -701,7 +705,7 @@ async function loadOtsuStations() {
       if (!rows.length) {
         const p = document.createElement("p");
         p.className = "muted";
-        p.textContent = "この先の発車列車はありません。";
+p.textContent = "この先の未回収スタフの列車はありません。";
         root.append(p);
         continue;
       }
