@@ -196,11 +196,14 @@ async function loadOtsuStations() {
         throw new Error("最寄り駅を特定できませんでした。");
       }
 
+      const stationSelect = $("manualStation");
+      if (stationSelect) stationSelect.value = nearest.name;
       message(
         "locationMessage",
         "最寄り駅： " + nearest.name + "駅\n" +
         "直線距離：約" + nearest.distance.toFixed(2) + " km"
       );
+      message("manualStationMessage", "現在地から判定した駅を選択中です。");
 
     } catch (error) {
       let text = "位置情報を取得できませんでした。";
@@ -223,6 +226,27 @@ async function loadOtsuStations() {
     }
   }
 
+
+
+  // 手動選択用の駅一覧を作成（選択内容は端末・DBへ保存しない）
+  function setupManualStation() {
+    const select = $("manualStation");
+    if (!select) return;
+    for (const name of otsuStationNames) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name + "駅";
+      select.appendChild(option);
+    }
+    select.addEventListener("change", () => {
+      if (!select.value) {
+        message("manualStationMessage", "駅を選択してください。");
+        return;
+      }
+      message("locationMessage", "選択した駅： " + select.value + "駅\n手動で選択しています。");
+      message("manualStationMessage", "手動選択した駅を表示中です。現在地から再取得するとGPS判定に戻ります。");
+    });
+  }
 
   const ready =
     cfg.SUPABASE_URL &&
@@ -598,7 +622,7 @@ const locationBtn = $("locationBtn");
 if (locationBtn) {
   locationBtn.addEventListener("click", findNearestStation);
 }
-  
+setupManualStation();
 
   init();
 })();
