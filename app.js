@@ -591,7 +591,9 @@ async function loadOtsuStations() {
   }
 
   function renderTimetable() {
-    const root = $("timetableRows");
+  if (!isAdmin) return;
+
+  const root = $("timetableRows");
     if (!root) return;
     root.replaceChildren();
     const station = $("timetableStation").value;
