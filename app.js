@@ -145,38 +145,7 @@ async function loadOtsuStations() {
 }
 
 
-        const result = await response.json();
-
-        const allowed = new Set(otsuStationNames);
-
-        const stations = (result.elements || [])
-          .map(item => {
-            const name = item.tags?.name || item.tags?.["name:ja"];
-            const lat = item.lat ?? item.center?.lat;
-            const lon = item.lon ?? item.center?.lon;
-
-            return { name, lat, lon };
-          })
-          .filter(s =>
-            allowed.has(s.name) &&
-            Number.isFinite(s.lat) &&
-            Number.isFinite(s.lon)
-          );
-
-        if (!stations.length) {
-          throw new Error("駅の位置情報が見つかりませんでした。");
-        }
-
-        otsuStations = stations;
-        return stations;
-
-      } catch (error) {
-        lastError = error;
-      }
-    }
-
-    throw lastError || new Error("駅データを取得できませんでした。");
-  }
+   
 
   // 現在地から最寄り駅を調べる
   async function findNearestStation() {
