@@ -52,6 +52,24 @@
           <p id="manualStationMessage" class="muted" aria-live="polite">選択した駅はこの画面内だけで使用します。</p>
         </div>
       </section>
+      <section id="nextDeparturesPanel" class="panel">
+        <div class="list-heading">
+          <h2>最寄駅から次に発車する列車</h2>
+          <p class="muted">現在地から取得した駅を基準に、現在時刻以降の公開時刻表を表示します。</p>
+        </div>
+        <p id="nextDeparturesStation" class="record-summary">現在地から最寄駅を取得してください。</p>
+        <div class="next-departures-grid">
+          <section class="next-direction">
+            <h3>坂本・京都市営地下鉄方面</h3>
+            <div id="nextSakamoto" class="next-departures-list"><p class="muted">最寄駅を取得すると表示します。</p></div>
+          </section>
+          <section class="next-direction">
+            <h3>石山寺・びわ湖浜大津方面</h3>
+            <div id="nextIshiyama" class="next-departures-list"><p class="muted">最寄駅を取得すると表示します。</p></div>
+          </section>
+        </div>
+        <p class="muted next-note">公開時刻表に基づく発車案内です。現在時刻は端末の時計を使用します。</p>
+      </section>
       <section id="timetablePanel" class="panel">
         <div class="list-heading"><h2>公開時刻表</h2><p class="muted">管理者が読み込んだ .oud の公開時刻表データを表示します。</p></div>
         <div id="timetableAdminTools" hidden>

@@ -201,6 +201,9 @@ async function loadOtsuStations() {
 
       const stationSelect = $("manualStation");
       if (stationSelect) stationSelect.value = nearest.name;
+      const timetableSelect = $("timetableStation");
+      if (timetableSelect) timetableSelect.value = nearest.name;
+      renderNextDepartures();
       message(
         "locationMessage",
         "最寄り駅： " + nearest.name + "駅\n" +
@@ -248,6 +251,9 @@ async function loadOtsuStations() {
       }
       message("locationMessage", "選択した駅： " + select.value + "駅\n手動で選択しています。");
       message("manualStationMessage", "手動選択した駅を表示中です。現在地から再取得するとGPS判定に戻ります。");
+      const timetableSelect = $("timetableStation");
+      if (timetableSelect) timetableSelect.value = select.value;
+      renderNextDepartures();
     });
   }
 
@@ -597,6 +603,93 @@ async function loadOtsuStations() {
     }
   }
 
+
+  // 公開時刻表から、選択駅の次発列車を方向別に最大3件表示
+  function renderNextDepartures() {
+    const station = $("manualStation")?.value || "";
+    const stationLabel = $("nextDeparturesStation");
+    const northRoot = $("nextSakamoto");
+    const southRoot = $("nextIshiyama");
+    if (!stationLabel || !northRoot || !southRoot) return;
+
+    stationLabel.textContent = station
+      ? `基準駅：${station}駅 ／ 現在時刻：${new Date().toLocaleTimeString("ja-JP", {hour:"2-digit", minute:"2-digit"})}`
+      : "現在地から最寄駅を取得してください。";
+
+    northRoot.replaceChildren();
+    southRoot.replaceChildren();
+    if (!station) {
+      for (const root of [northRoot, southRoot]) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "最寄駅を取得すると表示します。";
+        root.append(p);
+      }
+      return;
+    }
+    if (!currentTimetable.length) {
+      for (const root of [northRoot, southRoot]) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "公開時刻表がまだ読み込まれていません。";
+        root.append(p);
+      }
+      return;
+    }
+
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const groups = { north: [], south: [] };
+    // 土日祝相当は土休日ダイヤ、平日は平日ダイヤを優先
+    // 「学休期」は学校休業日の判定情報がないため、自動選択せず平日扱い
+    const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+    const wantedDiagram = isWeekend ? "土休日" : "平日";
+    const dayRows = currentTimetable.filter(t => String(t.diagram || "").includes(wantedDiagram));
+    const timetableRows = dayRows.length ? dayRows : currentTimetable;
+
+    for (const train of timetableRows) {
+      const call = (train.calls || []).find(c => c.station === station);
+      if (!call) continue;
+      const rawTime = call.departure || call.time || call.arrival || "";
+      const match = String(rawTime).match(/^(\d{1,2}):(\d{2})$/);
+      if (!match) continue;
+      let minutes = Number(match[1]) * 60 + Number(match[2]);
+      // OuDiaの深夜帯（24時以降）表記を現在時刻と比較できるようにする
+      if (minutes < 180 && nowMinutes >= 180) minutes += 1440;
+      if (minutes < nowMinutes) continue;
+
+      // OuDiaの方向区分に従って2方面に分ける
+      const key = train.direction === "下り" ? "north" : "south";
+      groups[key].push({ train, time: rawTime, minutes });
+    }
+
+    for (const [key, root] of [["north", northRoot], ["south", southRoot]]) {
+      const rows = groups[key].sort((a,b) => a.minutes - b.minutes).slice(0,3);
+      if (!rows.length) {
+        const p = document.createElement("p");
+        p.className = "muted";
+        p.textContent = "この先の発車列車はありません。";
+        root.append(p);
+        continue;
+      }
+      for (const row of rows) {
+        const card = document.createElement("article");
+        card.className = "next-departure-card";
+        const time = document.createElement("strong");
+        time.className = "next-departure-time";
+        time.textContent = row.time;
+        const train = document.createElement("span");
+        train.className = "next-departure-train";
+        train.textContent = `${row.train.trainNo}　${row.train.direction}`;
+        const diagram = document.createElement("span");
+        diagram.className = "next-departure-meta";
+        diagram.textContent = row.train.diagram || "";
+        card.append(time, train, diagram);
+        root.append(card);
+      }
+    }
+  }
+
   async function loadPublicTimetable() {
     const { data, error } = await client.from("public_timetable").select("data, source_filename, imported_at").eq("id", 1).maybeSingle();
     if (error) {
@@ -608,6 +701,7 @@ async function loadOtsuStations() {
     currentTimetableStations = data?.data?.stations || [];
     setupTimetableStationOptions();
     renderTimetable();
+    renderNextDepartures();
     if (data?.source_filename) {
       const date = data.imported_at ? new Date(data.imported_at).toLocaleString("ja-JP") : "";
       $("timetableSummary").textContent += ` ／ ${data.source_filename} ${date ? "（" + date + "反映）" : ""}`;
@@ -924,6 +1018,8 @@ if (locationBtn) {
   $("timetableStation")?.addEventListener("change", renderTimetable);
   $("timetableSearch")?.addEventListener("input", renderTimetable);
   setupManualStation();
+  renderNextDepartures();
+  setInterval(renderNextDepartures, 60000);
 
   init();
 })();
