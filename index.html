@@ -54,6 +54,18 @@
     <section id="appPanel" hidden>
 
       <div class="toolbar">
+        <!-- 現在地・最寄り駅 -->
+<section id="locationPanel" class="panel">
+  <h3>現在地・最寄り駅</h3>
+  <p class="muted">
+    現在地から大津線の最寄り駅を調べます。
+    位置情報は記録・保存されません。
+  </p>
+  <button id="locationBtn" type="button">
+    現在地から最寄り駅を調べる
+  </button>
+  <p id="locationMessage" class="message" aria-live="polite"></p>
+</section>
         <div>
           <h2>記録一覧</h2>
           <p class="muted" id="userEmail"></p>
@@ -65,19 +77,6 @@
       <section id="adminForm" class="panel" hidden>
         <h3>記録を追加</h3>
 
-
-      <!-- 現在地・最寄り駅 -->
-      <section id="locationPanel" class="panel">
-        <h3>現在地・最寄り駅</h3>
-        <p class="muted">
-          現在地から大津線の最寄り駅を調べます。
-          位置情報は記録・保存されません。
-        </p>
-        <button id="locationBtn" type="button">
-          現在地から最寄り駅を調べる
-        </button>
-        <p id="locationMessage" class="message" aria-live="polite"></p>
-      </section>
 
         
         <label>
