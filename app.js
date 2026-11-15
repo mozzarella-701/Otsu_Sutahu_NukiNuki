@@ -402,6 +402,104 @@ async function loadOtsuStations() {
         const actions = document.createElement("div");
         actions.className = "record-actions";
 
+  // 管理者向け：記録の編集
+  function openRecordEditor(record, card) {
+    if (!isAdmin) return;
+
+    const oldEditor = card.querySelector(".record-edit-form");
+    if (oldEditor) {
+      oldEditor.remove();
+      return;
+    }
+
+    const editor = document.createElement("div");
+    editor.className = "record-edit-form";
+    editor.style.cssText = `
+      display:grid;
+      gap:10px;
+      margin-top:14px;
+      padding:14px;
+      background:#f3f7f6;
+      border-radius:12px;
+    `;
+
+    function addField(labelText, value, multiline = false) {
+      const label = document.createElement("label");
+      label.textContent = labelText;
+      label.style.cssText = "display:grid;gap:6px;font-weight:600;";
+
+      const field = document.createElement(
+        multiline ? "textarea" : "input"
+      );
+
+      field.value = value || "";
+      field.style.cssText = `
+        box-sizing:border-box;
+        width:100%;
+        padding:10px;
+        border:1px solid #cbd8d5;
+        border-radius:8px;
+        background:white;
+        font:inherit;
+      `;
+
+      if (multiline) field.rows = 3;
+
+      label.append(field);
+      editor.append(label);
+      return field;
+    }
+
+    const titleInput = addField("記録名", record.title);
+    const categoryInput = addField("分類", record.category);
+    const noteInput = addField("メモ", record.note, true);
+
+    const buttons = document.createElement("div");
+    buttons.className = "record-actions";
+
+    const save = document.createElement("button");
+    save.textContent = "変更を保存";
+
+    save.onclick = async () => {
+      const title = titleInput.value.trim();
+
+      if (!title) {
+        alert("記録名を入力してください。");
+        return;
+      }
+
+      save.disabled = true;
+      save.textContent = "保存中…";
+
+      const { error } = await client
+        .from("records")
+        .update({
+          title,
+          category: categoryInput.value.trim(),
+          note: noteInput.value.trim()
+        })
+        .eq("id", record.id);
+
+      if (error) {
+        alert("保存できませんでした。");
+        console.error(error);
+        save.disabled = false;
+        save.textContent = "変更を保存";
+        return;
+      }
+
+      await loadRecords();
+    };
+
+    const cancel = document.createElement("button");
+    cancel.textContent = "キャンセル";
+    cancel.onclick = () => editor.remove();
+
+    buttons.append(save, cancel);
+    editor.append(buttons);
+    card.append(editor);
+  }
+        
         const toggle = document.createElement("button");
         toggle.className = "done";
         toggle.textContent = r.completed ? "未完了に戻す" : "完了にする";
@@ -415,6 +513,11 @@ async function loadOtsuStations() {
           if (error) alert("更新できませんでした。");
           else await loadRecords();
         };
+
+        const edit = document.createElement("button");
+        edit.textContent = "編集";
+        edit.onclick = () => openRecordEditor(r, card);        
+
 
         const del = document.createElement("button");
         del.className = "delete";
@@ -432,7 +535,7 @@ async function loadOtsuStations() {
           else await loadRecords();
         };
 
-        actions.append(toggle, del);
+                actions.append(edit, toggle, del);
         card.append(actions);
       }
 
