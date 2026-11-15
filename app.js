@@ -39,40 +39,111 @@
   }
 
   // 公開地図データから大津線の駅位置を取得
-  async function loadOtsuStations() {
-    if (otsuStations) return otsuStations;
 
-    const query = `
-      [out:json][timeout:25];
-      (
-        node["railway"~"^(station|halt|tram_stop)$"]
-          (34.93,135.78,35.12,135.95);
-        way["railway"~"^(station|halt|tram_stop)$"]
-          (34.93,135.78,35.12,135.95);
-      );
-      out center tags;
-    `;
+async function loadOtsuStations() {
+  if (otsuStations) return otsuStations;
 
-    const endpoints = [
-      "https://overpass-api.de/api/interpreter",
-      "https://overpass.kumi.systems/api/interpreter"
-    ];
+  const cacheKey = "otsu_station_cache_v1";
+  const cacheDays = 30;
 
-    let lastError;
+  // 保存済みの駅データを確認
+  try {
+    const cached = localStorage.getItem(cacheKey);
 
-    for (const endpoint of endpoints) {
+    if (cached) {
+      const saved = JSON.parse(cached);
+      const age = Date.now() - saved.savedAt;
+      const limit = cacheDays * 24 * 60 * 60 * 1000;
+
+      if (
+        Array.isArray(saved.stations) &&
+        saved.stations.length > 0 &&
+        age < limit
+      ) {
+        otsuStations = saved.stations;
+        return otsuStations;
+      }
+    }
+  } catch (error) {
+    console.warn("駅データの保存情報を読み込めませんでした。", error);
+  }
+
+  // 保存データがない場合は外部から取得
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["railway"~"^(station|halt|tram_stop)$"]
+        (34.93,135.78,35.12,135.95);
+      way["railway"~"^(station|halt|tram_stop)$"]
+        (34.93,135.78,35.12,135.95);
+    );
+    out center tags;
+  `;
+
+  const endpoints = [
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter"
+  ];
+
+  let lastError;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+        },
+        body: "data=" + encodeURIComponent(query)
+      });
+
+      if (!response.ok) {
+        throw new Error("駅データを取得できませんでした。");
+      }
+
+      const result = await response.json();
+      const allowed = new Set(otsuStationNames);
+
+      const stations = (result.elements || [])
+        .map(item => {
+          const name = item.tags?.name || item.tags?.["name:ja"];
+          const lat = item.lat ?? item.center?.lat;
+          const lon = item.lon ?? item.center?.lon;
+
+          return { name, lat, lon };
+        })
+        .filter(s =>
+          allowed.has(s.name) &&
+          Number.isFinite(s.lat) &&
+          Number.isFinite(s.lon)
+        );
+
+      if (!stations.length) {
+        throw new Error("駅の位置情報が見つかりませんでした。");
+      }
+
+      otsuStations = stations;
+
+      // 次回用に駅データを保存
       try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
-          },
-          body: "data=" + encodeURIComponent(query)
-        });
+        localStorage.setItem(cacheKey, JSON.stringify({
+          savedAt: Date.now(),
+          stations
+        }));
+      } catch (error) {
+        console.warn("駅データを保存できませんでした。", error);
+      }
 
-        if (!response.ok) {
-          throw new Error("駅データを取得できませんでした。");
-        }
+      return stations;
+
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("駅データを取得できませんでした。");
+}
+
 
         const result = await response.json();
 
