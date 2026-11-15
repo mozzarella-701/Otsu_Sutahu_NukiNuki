@@ -350,6 +350,7 @@ async function loadOtsuStations() {
       $("userManagement").hidden = !isAdmin;
       $("exportTools").hidden = !isAdmin;
       $("timetableAdminTools").hidden = !isAdmin;
+      $("timetablePanel").hidden = !isAdmin;
 
       await loadRecords();
       await loadPublicTimetable();
