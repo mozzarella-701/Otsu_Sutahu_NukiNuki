@@ -553,7 +553,8 @@ async function loadOtsuStations() {
             const sortTime = cell.departure?.minutes ?? cell.arrival?.minutes;
             calls.push({ station: stations[i], time: departure || arrival, arrival, departure, sortTime });
           }
-          if (calls.length) schedules.push({ diagram: diaName, direction, trainNo, calls });
+          if (calls.length) schedules.push({ diagram: diaName, direction, trainNo, collected, calls });
+                    const collected = get("Bikou").includes("〔回収:済〕");
         }
       }
     }
