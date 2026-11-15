@@ -21,8 +21,10 @@
     "島ノ関", "びわ湖浜大津", "三井寺", "大津市役所前",
     "京阪大津京", "近江神宮前", "南滋賀", "滋賀里",
     "穴太", "松ノ馬場", "坂本比叡山口",
-    "京阪山科", "四宮", "追分", "大谷", "上栄町"
-      // oudの駅名とサイトの駅名の違いを吸収
+        "京阪山科", "四宮", "追分", "大谷", "上栄町"
+  ];
+
+  // oudの駅名とサイトの駅名の違いを吸収
   const stationAlias = {
     "びわ湖浜大津": ["浜大津", "浜大津（京津）"],
     "大津市役所前": ["別所"],
@@ -31,7 +33,6 @@
   };
   const sameStation = (callName, selected) =>
     callName === selected || (stationAlias[selected] || []).includes(callName);
-  ];
 
   // 2地点間の距離を計算（km）
   function distanceKm(lat1, lon1, lat2, lon2) {
