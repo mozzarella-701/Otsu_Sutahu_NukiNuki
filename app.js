@@ -590,7 +590,10 @@ async function loadOtsuStations() {
   $("refreshBtn").addEventListener("click", loadRecords);
   $("uncollectedOnly").addEventListener("change", loadRecords);
   $("refreshUsersBtn").addEventListener("click", loadUsers);
-  $("locationBtn").addEventListener("click", findNearestStation);
+const locationBtn = $("locationBtn");
+if (locationBtn) {
+  locationBtn.addEventListener("click", findNearestStation);
+}
   
 
   init();
