@@ -329,6 +329,7 @@ async function loadOtsuStations() {
 
       $("adminForm").hidden = !isAdmin;
       $("userManagement").hidden = !isAdmin;
+      $("exportTools").hidden = !isAdmin;
 
       await loadRecords();
 
@@ -437,6 +438,62 @@ async function loadOtsuStations() {
 
       root.append(card);
     });
+  }
+
+
+  // 管理者向け：全記録をCSVでバックアップ
+  function csvCell(value) {
+    let text = value == null ? "" : String(value);
+    // Excel等で数式として解釈される値を文字列として扱う
+    if (/^[\s]*[=+@\-]/.test(text)) text = "'" + text;
+    return '"' + text.replace(/"/g, '""') + '"';
+  }
+
+  async function exportAllRecordsCsv() {
+    if (!isAdmin) return;
+
+    const button = $("exportCsvBtn");
+    button.disabled = true;
+    button.textContent = "出力中…";
+
+    try {
+      const { data, error } = await client
+        .from("records")
+        .select("id, title, category, note, completed, created_at, created_by")
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      const headers = ["ID", "記録名", "分類", "メモ", "状態", "登録日時", "登録者ID"];
+      const lines = [headers, ...(data || []).map(row => [
+        row.id,
+        row.title,
+        row.category,
+        row.note,
+        row.completed ? "完了" : "未完了",
+        row.created_at,
+        row.created_by
+      ])];
+      const csv = "\uFEFF" + lines.map(line => line.map(csvCell).join(",")).join("\r\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const date = new Date();
+      const stamp = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("");
+      link.href = url;
+      link.download = `otsu-records-${stamp}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      message("listMessage", `${(data || []).length}件をCSV出力しました。`);
+    } catch (error) {
+      message("listMessage", "CSVを出力できませんでした。通信状態を確認してください。");
+      console.error(error);
+    } finally {
+      button.disabled = false;
+      button.textContent = "全記録をCSV出力";
+    }
   }
 
   async function loadUsers() {
@@ -631,6 +688,7 @@ async function loadOtsuStations() {
     loadRecords();
   });
   $("refreshUsersBtn").addEventListener("click", loadUsers);
+  $("exportCsvBtn")?.addEventListener("click", exportAllRecordsCsv);
 const locationBtn = $("locationBtn");
 if (locationBtn) {
   locationBtn.addEventListener("click", findNearestStation);

@@ -68,6 +68,7 @@
         <div class="list-heading"><div><h2>登録記録</h2><p class="muted">記録名・分類・メモから検索できます。</p></div></div>
         <label class="search-label">記録を検索<input id="recordSearch" type="search" placeholder="キーワードを入力"></label>
         <div class="filters"><label class="check"><input id="uncollectedOnly" type="checkbox" checked>未完了のみ表示</label><div class="filter-actions"><button id="clearFiltersBtn" class="secondary" type="button">条件クリア</button><button id="refreshBtn" class="secondary">再読み込み</button></div></div>
+        <div id="exportTools" class="export-tools" hidden><button id="exportCsvBtn" class="secondary" type="button">全記録をCSV出力</button><span class="muted">管理者専用・表示条件に関係なく全件を保存</span></div>
         <p id="recordSummary" class="record-summary" aria-live="polite">件数を読み込み中…</p>
         <div id="records" class="records"></div><p id="listMessage" class="message" aria-live="polite"></p>
       </section>
