@@ -68,7 +68,14 @@
             <div id="nextIshiyama" class="next-departures-list"><p class="muted">最寄駅を取得すると表示します。</p></div>
           </section>
         </div>
-        <p class="muted next-note">公開時刻表に基づく発車案内です。現在時刻は端末の時計を使用します。</p>
+        <section id="trainDetailPanel" class="train-detail-panel" hidden aria-live="polite">
+          <div class="train-detail-heading">
+            <div><h3 id="trainDetailTitle">列車詳細</h3><p id="trainDetailDestination" class="muted"></p></div>
+            <button id="closeTrainDetailBtn" class="secondary" type="button">閉じる</button>
+          </div>
+          <div id="trainDetailRows" class="train-detail-rows"></div>
+        </section>
+        <p class="muted next-note">列車カードを押すと、全駅の到着・発車時刻を確認できます。</p>
       </section>
       <section id="timetablePanel" class="panel">
         <div class="list-heading"><h2>公開時刻表</h2><p class="muted">管理者が読み込んだ .oud の公開時刻表データを表示します。</p></div>

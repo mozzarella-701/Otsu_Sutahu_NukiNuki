@@ -604,6 +604,39 @@ async function loadOtsuStations() {
   }
 
 
+  function showTrainDetail(train) {
+    const panel = $("trainDetailPanel");
+    const title = $("trainDetailTitle");
+    const destination = $("trainDetailDestination");
+    const rowsRoot = $("trainDetailRows");
+    if (!panel || !rowsRoot) return;
+
+    const calls = [...(train.calls || [])].sort((a, b) =>
+      (Number.isFinite(a.sortTime) ? a.sortTime : 999999) -
+      (Number.isFinite(b.sortTime) ? b.sortTime : 999999)
+    );
+    const terminal = calls.length ? calls[calls.length - 1].station : "行き先不明";
+    title.textContent = `${train.trainNo}　${train.direction}`;
+    destination.textContent = `行き先：${terminal} ／ ${train.diagram || ""}`;
+    rowsRoot.replaceChildren();
+
+    calls.forEach((call, index) => {
+      const row = document.createElement("div");
+      row.className = "train-detail-row";
+      const station = document.createElement("strong");
+      station.textContent = `${index + 1}. ${call.station}`;
+      const times = document.createElement("span");
+      const parts = [];
+      if (call.arrival) parts.push(`着 ${call.arrival}`);
+      if (call.departure) parts.push(`発 ${call.departure}`);
+      times.textContent = parts.join("　") || call.time || "時刻なし";
+      row.append(station, times);
+      rowsRoot.append(row);
+    });
+    panel.hidden = false;
+    panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
   // 公開時刻表から、選択駅の次発列車を方向別に最大3件表示
   function renderNextDepartures() {
     const station = $("manualStation")?.value || "";
@@ -673,18 +706,28 @@ async function loadOtsuStations() {
         continue;
       }
       for (const row of rows) {
-        const card = document.createElement("article");
-        card.className = "next-departure-card";
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "next-departure-card next-departure-button";
         const time = document.createElement("strong");
         time.className = "next-departure-time";
         time.textContent = row.time;
         const train = document.createElement("span");
         train.className = "next-departure-train";
         train.textContent = `${row.train.trainNo}　${row.train.direction}`;
+        const orderedCalls = [...(row.train.calls || [])].sort((a, b) =>
+          (Number.isFinite(a.sortTime) ? a.sortTime : 999999) -
+          (Number.isFinite(b.sortTime) ? b.sortTime : 999999)
+        );
+        const destination = orderedCalls.length ? orderedCalls[orderedCalls.length - 1].station : "行き先不明";
+        const dest = document.createElement("span");
+        dest.className = "next-departure-destination";
+        dest.textContent = `行き先：${destination}`;
         const diagram = document.createElement("span");
         diagram.className = "next-departure-meta";
-        diagram.textContent = row.train.diagram || "";
-        card.append(time, train, diagram);
+        diagram.textContent = `${row.train.diagram || ""} ・ 全駅時刻表を見る`;
+        card.append(time, train, dest, diagram);
+        card.addEventListener("click", () => showTrainDetail(row.train));
         root.append(card);
       }
     }
@@ -1018,6 +1061,10 @@ if (locationBtn) {
   $("timetableStation")?.addEventListener("change", renderTimetable);
   $("timetableSearch")?.addEventListener("input", renderTimetable);
   setupManualStation();
+  $("closeTrainDetailBtn")?.addEventListener("click", () => {
+    const panel = $("trainDetailPanel");
+    if (panel) panel.hidden = true;
+  });
   renderNextDepartures();
   setInterval(renderNextDepartures, 60000);
 
