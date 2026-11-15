@@ -332,9 +332,12 @@ async function loadOtsuStations() {
     const root = $("records");
     root.replaceChildren();
 
-    const rows = (data || []).filter(
-      r => !$("uncollectedOnly").checked || !r.completed
-    );
+    const keyword = ($("recordSearch")?.value || "").trim().toLocaleLowerCase("ja");
+    const rows = (data || []).filter(r => {
+      const statusMatches = !$("uncollectedOnly").checked || !r.completed;
+      const text = [r.title, r.category, r.note].filter(Boolean).join(" ").toLocaleLowerCase("ja");
+      return statusMatches && (!keyword || text.includes(keyword));
+    });
 
     if (!rows.length) {
       message("listMessage", "表示する記録はありません。");
@@ -589,6 +592,7 @@ async function loadOtsuStations() {
 
   $("refreshBtn").addEventListener("click", loadRecords);
   $("uncollectedOnly").addEventListener("change", loadRecords);
+  $("recordSearch")?.addEventListener("input", loadRecords);
   $("refreshUsersBtn").addEventListener("click", loadUsers);
 const locationBtn = $("locationBtn");
 if (locationBtn) {
