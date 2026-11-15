@@ -356,12 +356,20 @@ async function loadOtsuStations() {
     const root = $("records");
     root.replaceChildren();
 
+    const allRows = data || [];
+    const totalCount = allRows.length;
+    const completedCount = allRows.filter(r => r.completed).length;
+    const pendingCount = totalCount - completedCount;
     const keyword = ($("recordSearch")?.value || "").trim().toLocaleLowerCase("ja");
-    const rows = (data || []).filter(r => {
+    const rows = allRows.filter(r => {
       const statusMatches = !$("uncollectedOnly").checked || !r.completed;
       const text = [r.title, r.category, r.note].filter(Boolean).join(" ").toLocaleLowerCase("ja");
       return statusMatches && (!keyword || text.includes(keyword));
     });
+    const summary = $("recordSummary");
+    if (summary) {
+      summary.textContent = `全${totalCount}件 ／ 未完了${pendingCount}件 ／ 完了${completedCount}件　・　表示中${rows.length}件`;
+    }
 
     if (!rows.length) {
       message("listMessage", "表示する記録はありません。");
@@ -617,6 +625,11 @@ async function loadOtsuStations() {
   $("refreshBtn").addEventListener("click", loadRecords);
   $("uncollectedOnly").addEventListener("change", loadRecords);
   $("recordSearch")?.addEventListener("input", loadRecords);
+  $("clearFiltersBtn")?.addEventListener("click", () => {
+    if ($("recordSearch")) $("recordSearch").value = "";
+    if ($("uncollectedOnly")) $("uncollectedOnly").checked = false;
+    loadRecords();
+  });
   $("refreshUsersBtn").addEventListener("click", loadUsers);
 const locationBtn = $("locationBtn");
 if (locationBtn) {
