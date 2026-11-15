@@ -555,8 +555,7 @@ async function loadOtsuStations() {
             calls.push({ station: stations[i], time: departure || arrival, arrival, departure, sortTime });
           }
           if (calls.length) schedules.push({ diagram: diaName, direction, trainNo, collected, calls });
-                    const collected = get("Bikou").includes("〔回収:済〕");
-        }
+       }
       }
     }
     if (!schedules.length) throw new Error("列車時刻を読み取れませんでした。EkiJikokuの形式を確認してください。");
